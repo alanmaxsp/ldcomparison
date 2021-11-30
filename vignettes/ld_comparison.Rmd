@@ -1,0 +1,108 @@
+---
+title: "Linkage disequilibrium decay and phase correlation with ldcomparison"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Linkage disequilibrium decay and phase correlation with ldcomparison}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(ldcomparison)
+```
+
+
+## The data
+
+First, we generate some simulated data, 100 individuals each from two populations,
+genotyped on 500 markers on one chromosome.
+
+```{r}
+fake_data <- simulate_populations()
+dim(fake_data$haplo1)
+dim(fake_data$haplo2)
+head(fake_data$haplo1[, 1:10])
+positions <- fake_data$positions
+```
+
+
+
+## Pairwise LD
+
+As a first example, let's calculate pairwise LD between two.
+
+First, let's find two markers that segreaget in the first population. Trying to 
+estimate LD between monomorphic markers wouldn't be meaningful.
+
+```{r}
+freq <- colSums(fake_data$haplo1)/nrow(fake_data$haplo1)
+segregating <- which(freq > 0 & freq < 1)
+length(segregating)
+two_markers <- sample(segregating, 2)
+two_markers
+```
+
+We can now estimate LD with `get_ld`.
+
+```{r}
+get_ld(fake_data$haplo1[, two_markers[1]],
+       fake_data$haplo1[, two_markers[2]])
+```
+
+
+
+## LD matrix
+
+Let us get the whole LD matrix for population 1:
+
+```{r, fig.width = 5, fig.height = 5}
+ld_pop1 <- get_ld_matrix(fake_data$haplo1)
+image(t(ld_pop1))
+```
+
+
+## LD decay
+
+To look at LD decay, we first need to convert our LD matrix to a long format.
+
+```{r}
+pairwise_ld_pop1 <- convert_ld_to_distance_pairs(ld_pop1,
+                                                 positions,
+                                                 colnames(fake_data$haplo1))
+pairwise_ld_pop1
+```
+We can now plot LD as a function of distance, i.e. the LD decay curve:
+
+```{r, fig.width = 5, fig.height = 5}
+plot(pairwise_ld_pop1$distance,
+     pairwise_ld_pop1$ld)
+```
+
+
+
+## Phase correlation ("persistency of phase")
+
+In order to compare the LD between populations, we first need estimates for the
+second population too:
+
+```{r}
+ld_pop2 <- get_ld_matrix(fake_data$haplo2)
+pairwise_ld_pop2 <- convert_ld_to_distance_pairs(ld_pop2,
+                                                 positions,
+                                                 colnames(fake_data$haplo2))
+```
+
+Then, we can compare the two:
+
+```{r}
+get_phase_correlation(pairwise_ld_pop1,
+                      pairwise_ld_pop2)
+```
+

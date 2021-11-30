@@ -1,0 +1,20 @@
+Package: ldcomparison
+Type: Package
+Title: Linkage Disequilibrium Decay and Phase Correlation
+Version: 0.1.0
+Author: Martin Johnsson
+Maintainer: Martin Johnsson <sorill@gmail.com>
+Description: This package contains functions for calculating linkage disequilibrium
+    decay within a population and correlations ("persistency of phase") between
+    populations.
+    It works with phased data (or with pairwise linkage disequilibrium estimated
+    by some other means and imported.
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+Suggests: 
+    knitr,
+    rmarkdown,
+    AlphaSimR
+VignetteBuilder: knitr
+RoxygenNote: 7.1.2

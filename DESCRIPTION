@@ -8,13 +8,18 @@ Description: This package contains functions for calculating linkage disequilibr
     decay within a population and correlations ("persistency of phase") between
     populations.
     It works with phased data (or with pairwise linkage disequilibrium estimated
-    by some other means and imported.
+    by some other means and imported).
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
+Imports:
+    dplyr,
+    tibble,
+    tidyr
 Suggests: 
+    AlphaSimR,
+    ggplot2,
     knitr,
-    rmarkdown,
-    AlphaSimR
+    rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 7.1.2

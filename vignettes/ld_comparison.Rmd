@@ -52,8 +52,14 @@ two_markers
 We can now estimate LD with `get_ld`.
 
 ```{r}
-get_ld(fake_data$haplo1[, two_markers[1]],
-       fake_data$haplo1[, two_markers[2]])
+r2 <- get_ld(fake_data$haplo1[, two_markers[1]],
+             fake_data$haplo1[, two_markers[2]],
+             stat = "r2")
+r <- get_ld(fake_data$haplo1[, two_markers[1]],
+            fake_data$haplo1[, two_markers[2]],
+            stat = "r")
+r2
+r
 ```
 
 
@@ -63,7 +69,8 @@ get_ld(fake_data$haplo1[, two_markers[1]],
 Let us get the whole LD matrix for population 1:
 
 ```{r, fig.width = 5, fig.height = 5}
-ld_pop1 <- get_ld_matrix(fake_data$haplo1)
+ld_pop1 <- get_ld_matrix(fake_data$haplo1,
+                         stat = "r2")
 image(t(ld_pop1))
 ```
 
@@ -89,20 +96,135 @@ plot(pairwise_ld_pop1$distance,
 
 ## Phase correlation ("persistency of phase")
 
-In order to compare the LD between populations, we first need estimates for the
-second population too:
+In order to compare the LD between populations, we first need estimates in the form
+of correlation coefficients for both populations.
 
 ```{r}
-ld_pop2 <- get_ld_matrix(fake_data$haplo2)
-pairwise_ld_pop2 <- convert_ld_to_distance_pairs(ld_pop2,
-                                                 positions,
-                                                 colnames(fake_data$haplo2))
+r_pop1 <- get_ld_matrix(fake_data$haplo1, stat = "r")
+r_pop2 <- get_ld_matrix(fake_data$haplo2, stat = "r")
+
+pairwise_r_pop1 <- convert_ld_to_distance_pairs(r_pop1,
+                                                positions,
+                                                colnames(fake_data$haplo1))
+pairwise_r_pop2 <- convert_ld_to_distance_pairs(r_pop2,
+                                                positions,
+                                                colnames(fake_data$haplo2))
 ```
 
-Then, we can compare the two:
+Then, we can compare the two. We can calculate the correlation for the whole
+chromosome:
 
 ```{r}
-get_phase_correlation(pairwise_ld_pop1,
-                      pairwise_ld_pop2)
+get_phase_correlation(pairwise_r_pop1,
+                      pairwise_r_pop2)
+```
+However, that might be less informative. We'd really like the comparisons
+to be grouped by distance.
+
+```{r}
+grouped_r_pop1 <- group_ld_by_distance(pairwise_r_pop1, window_size = 0.1)
+grouped_r_pop2 <- group_ld_by_distance(pairwise_r_pop2, window_size = 0.1)
+
+fake_data_phase_correlation <- get_phase_correlation_windows(grouped_r_pop1,
+                                                             grouped_r_pop2)
+```
+
+
+
+## An example with real data
+
+Some raw example data is stored within a package; we read it from the package
+`extdata` folder.
+
+```{r}
+filename_haps <- system.file("extdata", "chr28.phased.haps", package = "ldcomparison")
+filename_sample <- system.file("extdata", "chr28.phased.sample", package = "ldcomparison")
+
+chicken_data <- read_shapeit(filename_haps,
+                             filename_sample)
+```
+
+This sample consists of individuals from two commercial crossbreds; the IDs 
+corresponding to each crossbred are stored in text files.
+
+```{r}
+filename_LSL <- system.file("extdata", "LSL_ids.txt", package = "ldcomparison")
+filename_Bovans <- system.file("extdata", "Bovans_ids.txt", package = "ldcomparison")
+
+LSL_ids <- scan(filename_LSL, what = character())
+Bovans_ids <- scan(filename_Bovans, what = character())
+```
+
+As we can see, the ID files contain all chickens in the dataset, but the
+haplotype file only individuals successfully genotyped
+
+```{r}
+length(LSL_id) + length(Bovans_ids)
+nrow(chicken_data$haplo)/2
+```
+
+We now extract the rows of the haplotype matrix that match with the individual
+IDs given in the SHAPEIT file:
+
+```{r}
+LSL_haplo <- chicken_data$haplo[na.exclude(match(chicken_data$sample_id, LSL_ids)), ]
+Bovans_haplo <- chicken_data$haplo[na.exclude(match(chicken_data$sample_id, Bovans_ids)), ]
+```
+
+And check that the number of observations line up:
+
+```{r}
+nrow(LSL_haplo)
+sum(LSL_ids %in% chicken_data$sample_ids) * 2
+
+nrow(Bovans_haplo)
+sum(Bovans_ids %in% chicken_data$sample_ids) * 2
+```
+
+(By the way, this is how the `chicken_chr28_LSL` and `chicken_chr28_Bovans`
+exported data objects included in the package were made.)
+
+Now we are ready to compare the LD.
+
+```{r}
+ld_LSL <- get_ld_matrix(LSL_haplo, stat = "r")
+ld_Bovans <- get_ld_matrix(Bovans_haplo, stat = "r")
+
+pairs_LSL <- convert_ld_to_distance_pairs(ld_LSL,
+                                          chicken_data$positions,
+                                          names(chicken_data$positions))
+
+pairs_Bovans <- convert_ld_to_distance_pairs(ld_Bovans,
+                                             chicken_data$positions,
+                                             names(chicken_data$positions))
+```
+
+
+
+```{r}
+get_phase_correlation(pairs_LSL,
+                      pairs_Bovans)
+```
+
+```{r}
+grouped_LSL <- group_ld_by_distance(pairs_LSL, 
+                                    window_size = 1e5)
+grouped_Bovans <- group_ld_by_distance(pairs_Bovans, 
+                                    window_size = 1e5)
+
+
+```
+
+We can look at the mean distance within each group, and the mean LD (expressed as r squared):
+
+```{r}
+purrr::map_dbl(grouped_Bovans, function(x) mean(x$distance))
+purrr::map_dbl(grouped_Bovans, function(x) mean(x$ld^2))
+```
+
+Now, we can apply the phase correlation function across the windows.
+
+```{r}
+chicken_phase_correlation <- get_phase_correlation_windows(grouped_LSL, grouped_Bovans)
 ```
 

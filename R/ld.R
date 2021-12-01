@@ -10,9 +10,30 @@
 #' @examples
 read_shapeit <- function(filename_haps,
                          filename_samples) {
+  haps <- readr::read_delim(filename_haps,
+                            delim = " ",
+                            col_names = FALSE)
+
+  metadata <- haps[, 1:5]
+  haps <- haps[, 6:ncol(haps)]
+
+  haps_transposed <- t(haps)
+  colnames(haps_transposed) <- metadata$X2
+
+  marker_positions <- metadata$X3
+  names(marker_positions) <- metadata$X2
 
 
-  ## transpose
+  sample_data <- readr::read_delim(filename_samples,
+                                   delim = " ",
+                                   col_names = FALSE)
+
+  observation_data <- sample_data[rep(1:nrow(sample_data), each = 2),]
+
+  list(haplo = haps_transposed,
+       positions = marker_positions,
+       sample_ids = observation_data$X2)
+
 }
 
 
@@ -51,6 +72,10 @@ get_ld <- function(haploA,
     result <- r2
   } else if (stat == "D") {
     result <- D
+  } else if (stat == "r") {
+    r <- D / sqrt((pA * (1 - pA) * pB * (1 - pB)))
+
+    result <- r
   }
   result
 }
@@ -109,6 +134,7 @@ convert_ld_to_distance_pairs <- function(ld,
                                  values_to = "ld")
 
   ld_long <- na.exclude(ld_long)
+  ld_long <- ld_long[ld_long$marker1 != ld_long$marker2,]
 
   ld_long$marker1_position <- positions[match(ld_long$marker1, marker_names)]
   ld_long$marker2_position <- positions[match(ld_long$marker2, marker_names)]
@@ -120,23 +146,41 @@ convert_ld_to_distance_pairs <- function(ld,
 }
 
 get_phase_correlation <- function(pairwise_ld_population1,
-                                  pairwise_ld_population2,
-                                  positions) {
+                                  pairwise_ld_population2) {
   cols <- c("marker1", "marker2", "ld")
   combined <- dplyr::inner_join(pairwise_ld_population1[, cols],
                                 pairwise_ld_population2[, cols],
                                 by = c("marker1", "marker2"))
   phase_cor <- cor(combined$ld.x, combined$ld.y)
 
-  list(correlation = phase_cor,
-       marker_pairs_used = nrow(combined))
+  tibble::tibble(correlation = phase_cor,
+                 marker_pairs_used = nrow(combined))
+}
+
+
+get_phase_correlation_windows <- function(grouped_ld_population1,
+                                          grouped_ld_population2) {
+
+  purrr::pmap_dfr(list(pairwise_ld_population1 = grouped_ld_population1,
+                       pairwise_ld_population2 = grouped_ld_population2),
+                  get_phase_correlation)
+
 }
 
 
 group_ld_by_distance <- function(pairwise_ld,
-                                 positions,
                                  window_size) {
+  max_distance <- max(pairwise_ld$distance)
+  window_start <- seq(from = 0,
+                      to = max_distance,
+                      by = window_size)
+  window_end <- c(window_start[-1], max_distance)
 
-
+  purrr::pmap(list(start = window_start,
+                   end = window_end),
+              function (start, end) {
+                pairwise_ld[pairwise_ld$distance > start &
+                              pairwise_ld$distance <= end,]
+              })
 
 }
